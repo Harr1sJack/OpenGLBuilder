@@ -54,7 +54,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     private int WINDOW_WIDTH = 640;
     private int WINDOW_HEIGHT = 480;
     private static final String TITLE = "The Shapes";
-    private static final int FPS = 120;
+    private static final int FPS = 144;
 
     // provide access to opengl utility libraries like scaling, projections, etc..
     private GLU glu;
