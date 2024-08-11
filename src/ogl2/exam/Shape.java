@@ -1,13 +1,15 @@
 package ogl2.exam;
 
 import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL4;
+import com.jogamp.opengl.math.Matrix4f;
+import com.jogamp.opengl.util.texture.Texture;
+
+import java.nio.FloatBuffer;
 
 public class Shape {
     /* Important shapes: Cube, Cuboid */
 
-    public static void cube(GL2 gl2){
-        cube(gl2, 1, true);
-    } // draw a cube
     public static void cuboid(GL2 gl2){ // draw a cuboid
         cuboid(gl2, 1, true);
     } // draw a cuboid
@@ -196,49 +198,66 @@ public class Shape {
     }
 
     // build a cube
-    public static void cube(GL2 gl, double side, boolean makeTextureCoordinate){
-        // push the current matrix down in the stack
-        gl.glPushMatrix();
+    /*
+    public static Mesh cube(GL4 gl,Shader shader) {
+        float[] vertices = {
+                // positions          // texture coordinates
+                -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+                0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+                0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+                0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+                -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+                -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 
-            gl.glPushMatrix();
-                gl.glRotatef(0, 0, 1, 0);
-                gl.glTranslated(0, 0, side/2);
-                square(gl, side, makeTextureCoordinate);
-            gl.glPopMatrix();
+                -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+                0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+                0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+                0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+                -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+                -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
 
-            gl.glPushMatrix();
-                gl.glRotatef(90, 0, 1, 0);
-                gl.glTranslated(0, 0, side/2);
-                square(gl, side, makeTextureCoordinate);
-            gl.glPopMatrix();
+                -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+                -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+                -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+                -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+                -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+                -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
 
-            gl.glPushMatrix();
-                gl.glRotatef(180, 0, 1, 0);
-                gl.glTranslated(0, 0, side/2);
-                square(gl, side, makeTextureCoordinate);
-            gl.glPopMatrix();
+                0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+                0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+                0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+                0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+                0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+                0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
 
-            gl.glPushMatrix();
-                gl.glRotatef(270, 0, 1, 0);
-                gl.glTranslated(0, 0, side/2);
-                square(gl, side, makeTextureCoordinate);
-            gl.glPopMatrix();
+                -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+                0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+                0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+                0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+                -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+                -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
 
-            gl.glPushMatrix();
-                gl.glRotatef(90, 1, 0, 0);
-                gl.glTranslated(0, 0, side/2);
-                square(gl, side, makeTextureCoordinate);
-            gl.glPopMatrix();
+                -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+                0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+                0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+                0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+                -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+                -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
+        };
 
-            gl.glPushMatrix();
-                gl.glRotatef(-90, 1, 0, 0);
-                gl.glTranslated(0, 0, side/2);
-                square(gl, side, makeTextureCoordinate);
-            gl.glPopMatrix();
+        int[] indices = {
+                0, 1, 2, 2, 3, 0,   // back face
+                4, 5, 6, 6, 7, 4,   // front face
+                8, 9, 10, 10, 11, 8,  // left face
+                12, 13, 14, 14, 15, 12, // right face
+                16, 17, 18, 18, 19, 16, // bottom face
+                20, 21, 22, 22, 23, 20  // top face
+        };
 
-        gl.glPopMatrix();
+        // Create the Mesh object
+        return new Mesh(vertices, indices, shader);
     }
-
+    */
     // build a cuboid
     private static void cuboid(GL2 gl, double side, boolean makeTextureCoordinate){
         gl.glPushMatrix();

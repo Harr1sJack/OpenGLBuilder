@@ -3,19 +3,22 @@ package ogl2.exam;
 import com.jogamp.opengl.*;
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.glu.GLU;
+import com.jogamp.opengl.math.Matrix4f;
+import com.jogamp.opengl.math.Vec3f;
 import com.jogamp.opengl.util.FPSAnimator;
 import com.jogamp.opengl.util.awt.ImageUtil;
 import com.jogamp.opengl.util.awt.TextRenderer;
 import com.jogamp.opengl.util.texture.Texture;
 import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
-//import com.sun.prism.impl.BufferUtil;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -24,7 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class Project extends GLCanvas implements GLEventListener, KeyListener, MouseListener {
+public class Project extends GLCanvas implements GLEventListener, KeyListener, MouseListener,MouseMotionListener {
 
     // create multiple checkboxes
     private JCheckBox lightOnOff;
@@ -243,6 +246,11 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
     // initialize our camera class
     private Camera camera;
+    //Mesh Data
+    Mesh tower;
+    Mesh cube;
+    Shader defaultShader;
+    TextureLoader textureLoader;
 
     public static void logGLCapabilities(GLCapabilities capabilities) {
         System.out.println("Chosen GLCapabilities: ");
@@ -263,7 +271,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
         // gathers information about the current hardware & software configuration
         // to allow us render graphics to our screen
-        GLProfile profile = GLProfile.getDefault();
+        GLProfile profile = GLProfile.get(GLProfile.GL4bc);
         logGLProfile(profile);
         // specify a set of capabilities that our rendering should support
         GLCapabilities caps = new GLCapabilities(profile);
@@ -276,7 +284,6 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         SwingUtilities.invokeLater(() -> {
 
             // create the openGL rendering canvas
-
             canvas = new GLCanvas(caps);
 
             // set the desired frame size upon launch
@@ -286,6 +293,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             canvas.addGLEventListener(this);
             canvas.addKeyListener(this); //receive keyboard events
             canvas.addMouseListener(this); // notify when the mouse state changes
+            canvas.addMouseMotionListener(this);
             canvas.setFocusable(true); // get's the focus state of the component
             canvas.requestFocus(); // allow user input via the keyboard
             canvas.requestFocusInWindow(); // ensures the window gains focus once launched
@@ -477,15 +485,6 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                 }
             });
 
-            // Initialize the camera, set the position of it
-            camera = new Camera();
-            camera.lookAt(-5, 0, 3, // look from camera XYZ
-                    0, 0, 0, // look at the origin
-                    0, 1, 0); // positive Y up vector (roll of the camera)
-
-            // set the size of the shape while zoom in/out
-            camera.setScale(15);
-
             // once the application starts, the window size will fit our
             // preferred layout
             frame.pack();
@@ -496,51 +495,39 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
     }
 
+    private static void checkCompileErrors(GL4 gl, int shader, String type) {
+        int[] success = new int[1];
+        gl.glGetShaderiv(shader, GL4.GL_COMPILE_STATUS, success, 0);
+        if (success[0] == GL4.GL_FALSE) {
+            byte[] log = new byte[512];
+            gl.glGetShaderInfoLog(shader, 512, null, 0, log, 0);
+            System.err.println("ERROR::SHADER_COMPILATION_ERROR of type: " + type + "\n" + new String(log));
+        }
+    }
+
     @Override
     public void init(GLAutoDrawable glAutoDrawable) {
-        GL2 gl = glAutoDrawable.getGL().getGL2();
-
-        gl.glClearColor(0.95f, 0.95f, 1f, 0); // RGBA
-
+        GL4 gl = glAutoDrawable.getGL().getGL4();
+        gl.glClearColor(0.2f, 0.3f, 0.4f, 1.0f);
         // enable the depth buffer to allow us represent depth information in 3d space
-        gl.glEnable(GL2.GL_DEPTH_TEST);
-        gl.glEnable(GL2.GL_LIGHTING); // enable lighting calculation
-        gl.glEnable(GL2.GL_LIGHT0); // initial value for light (1,1,1,1) -> RGBA
-        gl.glEnable(GL2.GL_NORMALIZE);
-
-        gl.glEnable(GL2.GL_COLOR_MATERIAL);
-        gl.glLightModeli(GL2.GL_LIGHT_MODEL_TWO_SIDE, 1);
-        gl.glMateriali(GL2.GL_FRONT_AND_BACK, GL2.GL_SHININESS, 100);
-
-        // initialize different light sources
-        float [] ambient = {0.1f, 0.1f, 0.1f, 1.0f};
-        float [] diffuse = {1.0f, 1.0f, 1.0f, 1.0f};
-        float [] specular = {1.0f, 1.0f, 1.0f, 1.0f};
-
-        // configure different light sources
-        gl.glLightfv(GL2.GL_LIGHT0, GL2.GL_AMBIENT, ambient, 0);
-        gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_DIFFUSE, diffuse, 0);
-        gl.glLightfv(GL2.GL_LIGHT2, GL2.GL_SPECULAR, specular, 0);
+        gl.glEnable(GL4.GL_DEPTH_TEST);
 
         gl.glClearDepth(1.0f); // set clear depth value to farthest
-        gl.glEnable(GL2.GL_DEPTH_TEST); // enable depth testing
-        gl.glDepthFunc(GL2.GL_LEQUAL); // the type of depth test to do
-        // perspective correction
-        gl.glHint(GL2.GL_PERSPECTIVE_CORRECTION_HINT, GL2.GL_NICEST);
-        gl.glShadeModel(GL2.GL_SMOOTH); // blend colors nicely & have smooth lighting
+        gl.glEnable(GL4.GL_DEPTH_TEST); // enable depth testing
+        gl.glDepthFunc(GL4.GL_LEQUAL); // the type of depth test to do
 
-        gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
+        gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_FILL);
 
         // initialize the textures to use
         glu = GLU.createGLU(gl); // get Gl utilities
 
-        for (int i=0; i<textureFileNames.length; i++){
-            try{
+        for (int i = 0; i < textureFileNames.length; i++) {
+            try {
                 URL textureURL = getClass()
                         .getClassLoader()
-                        .getResource("textures/"+textureFileNames[i]);
+                        .getResource("textures/" + textureFileNames[i]);
 
-                if(textureURL != null){
+                if (textureURL != null) {
                     BufferedImage image = ImageIO.read(textureURL);
                     ImageUtil.flipImageVertically(image);
 
@@ -549,14 +536,14 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                             true);
 
                     textures[i].setTexParameteri(gl,
-                            GL2.GL_TEXTURE_WRAP_S,
-                            GL2.GL_REPEAT);
+                            GL4.GL_TEXTURE_WRAP_S,
+                            GL4.GL_REPEAT);
 
                     textures[i].setTexParameteri(gl,
-                            GL2.GL_TEXTURE_WRAP_T,
-                            GL2.GL_REPEAT);
+                            GL4.GL_TEXTURE_WRAP_T,
+                            GL4.GL_REPEAT);
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -567,50 +554,129 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         // initialize the font to use when rendering our text
         textRenderer = new TextRenderer(new Font("SansSerif", Font.PLAIN, 12));
         textMatch = new TextRenderer(new Font("SansSerif", Font.BOLD, 20));
-    }
 
+        defaultShader = new Shader("src/shaders/default.vert", "src/shaders/default.frag");
+        // Create identity matrices
+        Matrix4f modelMatrix = new Matrix4f().loadIdentity();
+        Matrix4f viewMatrix = new Matrix4f().loadIdentity();
+        Matrix4f projectionMatrix = new Matrix4f().loadIdentity();
+
+        defaultShader.use();
+        defaultShader.setUniformMat4f("model", modelMatrix.get(new float[16]));       // Convert to float array
+        defaultShader.setUniformMat4f("view", viewMatrix.get(new float[16]));         // Convert to float array
+        defaultShader.setUniformMat4f("projection", projectionMatrix.get(new float[16])); // Convert to float array
+        defaultShader.stop();
+        try {
+            tower = OBJLoader.loadMesh("C:/Users/Jack/Downloads/bottom.obj", defaultShader);
+            cube = OBJLoader.loadMesh("C:/Users/Jack/Downloads/cube.obj", defaultShader);
+            textureLoader = new TextureLoader("C:/Users/Jack/Downloads/tower.jpg");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        camera = new Camera(WINDOW_WIDTH, WINDOW_HEIGHT, new Vec3f(0, 0, 10));
+        camera.updateMatrix(60.0f, 0.1f, 1000.0f);
+    }
     @Override
     public void dispose(GLAutoDrawable glAutoDrawable) { }
 
     @Override
     public void display(GLAutoDrawable glAutoDrawable) {
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
+
         // clears both the color and depth buffer before rendering
-        gl.glClear(GL2.GL_COLOR_BUFFER_BIT | GL2.GL_DEPTH_BUFFER_BIT);
-
+        gl.glClear(GL4.GL_COLOR_BUFFER_BIT | GL4.GL_DEPTH_BUFFER_BIT);
         // check if we are in selection model
-        if(inSelectionMode){
-            // allow the user to pick a shape from the palette and add it to
-            // the blueprint
-            pickModels(glAutoDrawable);
-        }else{
-            palette(glAutoDrawable); // add the palette (left side)
-            drawBlueprint(glAutoDrawable); // draws the blueprint (right side)
-            drawBackground(glAutoDrawable); // draws the background (rainbow)
-        }
+        //if(inSelectionMode){
+            //pickModels(glAutoDrawable);
+        //}else{
+            //palette(glAutoDrawable); // add the palette (left side)
+            //drawBlueprint(glAutoDrawable); // draws the blueprint (right side)
+            //drawBackground(glAutoDrawable); // draws the background (rainbow)
+        //}
 
-        camera.apply(gl); // add the camera
+        float[] vertices = {
+                1.000000f, 1.000000f, -1.000000f,   // Vertex 1
+                1.000000f, -1.000000f, -1.000000f,  // Vertex 2
+                1.000000f, 1.000000f, 1.000000f,    // Vertex 3
+                1.000000f, -1.000000f, 1.000000f,   // Vertex 4
+                -1.000000f, 1.000000f, -1.000000f,  // Vertex 5
+                -1.000000f, -1.000000f, -1.000000f, // Vertex 6
+                -1.000000f, 1.000000f, 1.000000f,   // Vertex 7
+                -1.000000f, -1.000000f, 1.000000f   // Vertex 8
+        };
 
-        float [] zero = {0, 0, 0, 1};
-        lights(gl, zero); // add the lights
+        float[] textureCoords = {
+                0.875000f, 0.500000f,  // TexCoord 1
+                0.625000f, 0.750000f,  // TexCoord 2
+                0.625000f, 0.500000f,  // TexCoord 3
+                0.375000f, 1.000000f,  // TexCoord 4
+                0.375000f, 0.750000f,  // TexCoord 5
+                0.625000f, 0.000000f,  // TexCoord 6
+                0.375000f, 0.250000f,  // TexCoord 7
+                0.375000f, 0.000000f,  // TexCoord 8
+                0.375000f, 0.500000f,  // TexCoord 9
+                0.125000f, 0.750000f,  // TexCoord 10
+                0.125000f, 0.500000f,  // TexCoord 11
+                0.625000f, 0.250000f,  // TexCoord 12
+                0.875000f, 0.750000f,  // TexCoord 13
+                0.625000f, 1.000000f   // TexCoord 14
+        };
 
-        // turn on the global ambient light
-        if(globalAmbientLight.isSelected()){ // if it's checked
-            gl.glLightModelfv(GL2.GL_LIGHT_MODEL_AMBIENT,
-                    new float[] {0.2F, 0.2F, 0.2F, 1},
-                    0);
+        float[] normals = {
+                // Normals for each face, so each vertex has its normal
+                0.0f,  0.0f,  1.0f,  // Front face
+                0.0f,  0.0f, -1.0f,  // Back face
+                1.0f,  0.0f,  0.0f,  // Right face
+                -1.0f,  0.0f,  0.0f, // Left face
+                0.0f,  1.0f,  0.0f,  // Top face
+                0.0f, -1.0f,  0.0f   // Bottom face
+        };
 
-        }else{
-            gl.glLightModelfv(GL2.GL_LIGHT_MODEL_AMBIENT,
-                    zero,
-                    0);
-        }
 
-        // add a specular light to make the object shiny
-        gl.glMaterialfv(GL2.GL_FRONT_AND_BACK,
-                GL2.GL_SPECULAR,
-                new float[] {0.2F, 0.2F, 0.2F, 1}, 0);
+        int[] indices = {
+                4, 2, 0,  // Face 1
+                2, 7, 3,  // Face 2
+                6, 5, 7,  // Face 3
+                1, 7, 5,  // Face 4
+                0, 3, 1,  // Face 5
+                4, 1, 5,  // Face 6
+                4, 6, 2,  // Face 7
+                2, 6, 7,  // Face 8
+                6, 4, 5,  // Face 9
+                1, 3, 7,  // Face 10
+                0, 2, 3,  // Face 11
+                4, 0, 1   // Face 12
+        };
 
+        // Update and upload the camera matrices to the shader
+        camera.updateMatrix(45.0f, 0.1f, 1000.0f);
+        camera.uploadToShader(gl, defaultShader, "projection", "view");
+        // Draw your mesh
+        //tower.draw();
+
+        // Draw any additional objects
+        //Mesh cube = new Mesh(vertices, textureCoords, normals, indices, defaultShader);
+
+        defaultShader.use();
+        textureLoader.bind(gl);
+
+        int diffuseTextureLoc = gl.glGetUniformLocation(defaultShader.programId, "diffuseTexture");
+        gl.glUniform1i(diffuseTextureLoc, 0); // Texture unit 0
+
+        int lightPosLoc = gl.glGetUniformLocation(defaultShader.programId, "lightPos");
+        int viewPosLoc = gl.glGetUniformLocation(defaultShader.programId, "viewPos");
+
+        float[] lightPos = {0.0f, 70.0f, 0.0f};
+        gl.glUniform3fv(lightPosLoc, 1, lightPos, 0);
+
+        float[] viewPos = {camera.position.x(),camera.position.y(),camera.position.z()};
+        gl.glUniform3fv(viewPosLoc, 1, viewPos, 0);
+
+        cube.draw();
+        //tower.draw();
+
+        textureLoader.unbind(gl);
+        defaultShader.stop();
         // check if the game is finished, print the total matched shapes
         if(gameFinished){
             printResult();
@@ -765,14 +831,15 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         angleBottomY = 90;
         angleBottomZ = 90;
     }
-    private void lights(GL2 gl, float [] zero) {
+    /*
+    private void lights(GL4 gl, float [] zero) {
         gl.glColor3d(0.5, 0.5, 0.5);
-        gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_SPECULAR, zero, 0);
+        gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_SPECULAR, zero, 0);
 
         if(lightOnOff.isSelected()){
-            gl.glDisable(GL2.GL_LIGHTING);
+            gl.glDisable(GL4.GL_LIGHTING);
         }else{
-            gl.glEnable(GL2.GL_LIGHTING);
+            gl.glEnable(GL4.GL_LIGHTING);
         }
 
         float [] ambient = {0.1f, 0.1f, 0.1f, 1};
@@ -781,41 +848,44 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
         // ambient light
         if(ambientLight.isSelected()){
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, ambient, 0);
-            gl.glEnable(GL2.GL_LIGHT0);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, ambient, 0);
+            gl.glEnable(GL4.GL_LIGHT0);
         }else{
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, zero, 0);
-            gl.glDisable(GL2.GL_LIGHT0);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, zero, 0);
+            gl.glDisable(GL4.GL_LIGHT0);
         }
 
         // diffuse light
         if(diffuseLight.isSelected()){
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, diffuse, 0);
-            gl.glEnable(GL2.GL_LIGHT1);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, diffuse, 0);
+            gl.glEnable(GL4.GL_LIGHT1);
         }else{
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, zero, 0);
-            gl.glDisable(GL2.GL_LIGHT1);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, zero, 0);
+            gl.glDisable(GL4.GL_LIGHT1);
         }
 
         // specular light
         if(specularLight.isSelected()){
             float [] shininess = {0.1f, 0.1f, 0.1f, 1};
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, specular, 0);
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_SHININESS, shininess, 0);
-            gl.glEnable(GL2.GL_LIGHT2);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, specular, 0);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_SHININESS, shininess, 0);
+            gl.glEnable(GL4.GL_LIGHT2);
         }else{
-            gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, zero, 0);
-            gl.glDisable(GL2.GL_LIGHT2);
+            gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, zero, 0);
+            gl.glDisable(GL4.GL_LIGHT2);
         }
 
-        gl.glMaterialfv(GL2.GL_FRONT_AND_BACK, GL2.GL_EMISSION, zero, 0);
+        gl.glMaterialfv(GL4.GL_FRONT_AND_BACK, GL4.GL_EMISSION, zero, 0);
     }
+    */
+
+    /*
     private void drawBackground(GLAutoDrawable glAutoDrawable){
         try {
-            GL2 gl = glAutoDrawable.getGL().getGL2();
+            GL4 gl = glAutoDrawable.getGL().getGL4();
 
             // define the characteristics of our camera such as clipping, point of view...
-            gl.glMatrixMode(GL2.GL_PROJECTION);
+            gl.glMatrixMode(GL4.GL_PROJECTION);
             gl.glLoadIdentity(); // reset the current matrix
 
             // set the window screen
@@ -835,15 +905,15 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             );
 
             // define the position orientation of the camera
-            gl.glMatrixMode(GL2.GL_MODELVIEW);
+            gl.glMatrixMode(GL4.GL_MODELVIEW);
             gl.glLoadIdentity();
-            gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
+            gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_FILL);
 
             gl.glPushMatrix();
-            gl.glEnable(GL2.GL_TEXTURE_2D);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_NEAREST);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_NEAREST);
-            gl.glGenerateMipmap(GL2.GL_TEXTURE_2D);
+            gl.glEnable(GL4.GL_TEXTURE_2D);
+            gl.glTexParameteri(GL4.GL_TEXTURE_2D, GL4.GL_TEXTURE_MAG_FILTER, GL4.GL_NEAREST);
+            gl.glTexParameteri(GL4.GL_TEXTURE_2D, GL4.GL_TEXTURE_MIN_FILTER, GL4.GL_NEAREST);
+            gl.glGenerateMipmap(GL4.GL_TEXTURE_2D);
 
             textures[3].bind(gl); // specify the texture to use
 
@@ -854,7 +924,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             double radius = 5;
 
             // add the texture to our background
-            gl.glBegin(GL2.GL_POLYGON);
+            gl.glBegin(GL4.GL_POLYGON);
             gl.glNormal3f(0, 0, 1); // lighting calculation
 
             // top left corner of a square
@@ -873,136 +943,66 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             gl.glTexCoord2d(1, 1);
             gl.glVertex2d(radius, radius);
 
-            gl.glDisable(GL2.GL_TEXTURE_2D);
+            gl.glDisable(GL4.GL_TEXTURE_2D);
             gl.glEnd();
             gl.glPopMatrix();
         }catch (Exception e){
             e.printStackTrace();
         }
     }
+     */
+
     private void drawBlueprint(GLAutoDrawable glAutoDrawable){
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
 
         // define the point of view of the blueprint
         gl.glViewport(WINDOW_WIDTH/8, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        gl.glMatrixMode(GL2.GL_PROJECTION);
-        gl.glLoadIdentity();
-        glu.gluPerspective(currentAngleOfVisibleField,
-                1.f*WINDOW_WIDTH/WINDOW_HEIGHT, 1, 100);
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
-        gl.glLoadIdentity();
-        setObserver();
+        //gl.glMatrixMode(GL4.GL_PROJECTION);
+        //gl.glLoadIdentity();
+        //glu.gluPerspective(currentAngleOfVisibleField,
+        //       1.f*WINDOW_WIDTH/WINDOW_HEIGHT, 1, 100);
+        //gl.glMatrixMode(GL4.GL_MODELVIEW);
+        //gl.glLoadIdentity();
+        //setObserver();
 
         // draw the blueprint
-        gl.glPushMatrix();
+        //gl.glPushMatrix();
 
         // change the orientation of the blueprint
-        gl.glTranslated(translateX, translateY, translateZ);
-        gl.glScalef(scale, scale, scale);
-        gl.glRotated(currentAngleOfRotationX, 1, 0, 0);
-        gl.glRotated(currentAngleOfRotationY, 0, 1, 0);
+        //gl.glTranslated(translateX, translateY, translateZ);
+        //gl.glScalef(scale, scale, scale);
+        //gl.glRotated(currentAngleOfRotationX, 1, 0, 0);
+        //gl.glRotated(currentAngleOfRotationY, 0, 1, 0);
 
         // add some texture on the blueprint
-        gl.glColor3f(1, 1, 1);
-        gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
-        textures[1].bind(gl);
-        gl.glEnable(GL.GL_TEXTURE_2D);
+        //gl.glColor3f(1, 1, 1);
+        //gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_FILL);
+        //textures[1].bind(gl);
+        //gl.glEnable(GL.GL_TEXTURE_2D);
 
-        Shape.cube(gl, 2, true); // #TODO: Uncomment later
+        //Shape.cube(gl, 2, true); // #TODO: Uncomment later
 //            Shape.cuboid(gl, 1, true); // #TODO: Delete once done testing
 //            Shape.rectangularPyramid(gl); // #TODO: Delete once you're done testing
 //            Shape.cylinder(gl); // #TODO: Delete once you're done testing
 //            Shape.sphere(gl); // #TODO: Delete once you're done testing
 
-        gl.glDisable(GL.GL_TEXTURE_2D);
+        //gl.glDisable(GL.GL_TEXTURE_2D);
 
         // Draw random template shapes to be filled at different parts of the blueprint
-        drawRandomShapeOnBlueprint(glAutoDrawable, 1); // draw at on top
-        drawRandomShapeOnBlueprint(glAutoDrawable, 2); // draw at on left
-        drawRandomShapeOnBlueprint(glAutoDrawable, 3); // draw at on right
-        drawRandomShapeOnBlueprint(glAutoDrawable, 4); // draw at the bottom
-        drawRandomShapeOnBlueprint(glAutoDrawable, 5); // draw the second top shape
+        //drawRandomShapeOnBlueprint(glAutoDrawable, 1); // draw at on top
+        //drawRandomShapeOnBlueprint(glAutoDrawable, 2); // draw at on left
+        //drawRandomShapeOnBlueprint(glAutoDrawable, 3); // draw at on right
+        //drawRandomShapeOnBlueprint(glAutoDrawable, 4); // draw at the bottom
+        //drawRandomShapeOnBlueprint(glAutoDrawable, 5); // draw the second top shape
 
         // Allows the user to select a shape from the palette and deploy it unto the blueprint
-        deployShapeFromPaletteToBlueprint(glAutoDrawable, 1); // top side
-        deployShapeFromPaletteToBlueprint(glAutoDrawable, 2); // left side
-        deployShapeFromPaletteToBlueprint(glAutoDrawable, 3); // right side
-        deployShapeFromPaletteToBlueprint(glAutoDrawable, 4); // bottom side
-        deployShapeFromPaletteToBlueprint(glAutoDrawable, 5); // top second side
+        //deployShapeFromPaletteToBlueprint(glAutoDrawable, 1); // top side
+        //deployShapeFromPaletteToBlueprint(glAutoDrawable, 2); // left side
+        //deployShapeFromPaletteToBlueprint(glAutoDrawable, 3); // right side
+        //deployShapeFromPaletteToBlueprint(glAutoDrawable, 4); // bottom side
+        //deployShapeFromPaletteToBlueprint(glAutoDrawable, 5); // top second side
 
-        gl.glPopMatrix();
-//  ==========================  IDEAS FOR FINAL PROJECT ===================
-//            // To construct a building etc...
-//            gl.glPushMatrix();
-//                // change the orientation of the blueprint
-//                gl.glTranslated(0, -1, 0);
-//                gl.glRotated(0, 1, 0, 0);
-//
-//                // add some texture on the blueprint
-//                gl.glColor3f(1, 1, 1);
-//                gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
-//                textures[1].bind(gl);
-//                gl.glEnable(GL.GL_TEXTURE_2D);
-//                Shape.cube(gl, 1, true);
-//                gl.glDisable(GL.GL_TEXTURE_2D);
-//            gl.glPopMatrix();
-//
-//            gl.glPushMatrix();
-//                // change the orientation of the blueprint
-//                gl.glTranslated(0, 0, 0);
-//                gl.glRotated(0, 1, 0, 0);
-//
-//                // add some texture on the blueprint
-//                gl.glColor3f(1, 1, 1);
-//                gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
-//                textures[1].bind(gl);
-//                gl.glEnable(GL.GL_TEXTURE_2D);
-//                Shape.cube(gl, 1, true);
-//                gl.glDisable(GL.GL_TEXTURE_2D);
-//            gl.glPopMatrix();
-//
-//
-//            gl.glPushMatrix();
-//                // change the orientation of the blueprint
-//                gl.glTranslated(0, 1, 0);
-//                gl.glRotated(0, 1, 0, 0);
-//
-//                // add some texture on the blueprint
-//                gl.glColor3f(1, 1, 1);
-//                gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
-//                textures[1].bind(gl);
-//                gl.glEnable(GL.GL_TEXTURE_2D);
-//                Shape.cube(gl, 1, true);
-//                gl.glDisable(GL.GL_TEXTURE_2D);
-//            gl.glPopMatrix();
-//
-//            gl.glPushMatrix();
-//                // change the orientation of the blueprint
-//                gl.glTranslated(1, 0, 0);
-//                gl.glRotated(0, 1, 0, 0);
-//
-//                // add some texture on the blueprint
-//                gl.glColor3f(1, 1, 1);
-//                gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
-//                textures[1].bind(gl);
-//                gl.glEnable(GL.GL_TEXTURE_2D);
-//                Shape.cube(gl, 1, true);
-//                gl.glDisable(GL.GL_TEXTURE_2D);
-//            gl.glPopMatrix();
-//
-//            gl.glPushMatrix();
-//                // change the orientation of the blueprint
-//                gl.glTranslated(0, 0, 0);
-//                gl.glRotated(0, 1, 0, 0);
-//
-//                // add some texture on the blueprint
-//                gl.glColor3f(1, 1, 1);
-//                gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
-//                textures[1].bind(gl);
-//                gl.glEnable(GL.GL_TEXTURE_2D);
-//                Shape.cube(gl, 1, true);
-//                gl.glDisable(GL.GL_TEXTURE_2D);
-//            gl.glPopMatrix();
+        //gl.glPopMatrix();
     }
 
     private void deployShapeFromPaletteToBlueprint(GLAutoDrawable drawable, int choice){
@@ -1061,36 +1061,36 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                                      float randomScale, float randomRotate, // scale & rotate
                                      int shapeId){ // shape to be drawn
 
-        GL2 gl = glAutoDrawable.getGL().getGL2();
-        gl.glPushMatrix();
-        gl.glColor3f(colorRed, colorGreen, colorBlue);
-        gl.glTranslated(tX, tY, tZ);
-        gl.glScalef(randomScale, randomScale, randomScale);
-        gl.glRotatef(angleZ, 0, 0, randomRotate);
-        gl.glRotatef(angleY, 0, randomRotate, 0);
-        gl.glRotatef(angleX, randomRotate, 0, 0);
-        gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
+        GL4 gl = glAutoDrawable.getGL().getGL4();
+        //gl.glPushMatrix();
+        //gl.glColor3f(colorRed, colorGreen, colorBlue);
+        //gl.glTranslated(tX, tY, tZ);
+        //gl.glScalef(randomScale, randomScale, randomScale);
+        //gl.glRotatef(angleZ, 0, 0, randomRotate);
+        //gl.glRotatef(angleY, 0, randomRotate, 0);
+        //gl.glRotatef(angleX, randomRotate, 0, 0);
+        gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_FILL);
         pickShape(glAutoDrawable, shapeId);
-        gl.glPopMatrix();
+        //gl.glPopMatrix();
     }
 
     private void pickShape(GLAutoDrawable glAutoDrawable, int nameID){
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
         switch (nameID){ //#TODO: We will add other shapes here
             case CUBE_ID:
-                Shape.cube(gl);
+                //Shape.cube(gl,defaultShader);
                 break;
             case CUBOID_ID:
-                Shape.cuboid(gl);
+                //Shape.cuboid(gl);
                 break;
             case RECTANGULAR_PYRAMID_ID:
-                Shape.rectangularPyramid(gl);
+                //Shape.rectangularPyramid(gl);
                 break;
             case CYLINDER_ID:
-                Shape.cylinder(gl);
+                //Shape.cylinder(gl);
                 break;
             case SPHERE_ID:
-                Shape.sphere(gl);
+                //Shape.sphere(gl);
                 break;
         }
     }
@@ -1142,42 +1142,42 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                                             float randomScale, // scale
                                             int randomShape // random shape to be drawn
     ){
-        GL2 gl = drawable.getGL().getGL2();
+        GL4 gl = drawable.getGL().getGL4();
 
         if(randomRight == CUBOID_ID){
             rightX = 2.0f;
         }
 
         // apply a consecutive series of transformations
-        gl.glPushMatrix();
-        gl.glColor3f(colorRed, colorGreen, colorBlue);
-        gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_LINE);
+        //gl.glPushMatrix();
+        //gl.glColor3f(colorRed, colorGreen, colorBlue);
+        gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_LINE);
         gl.glLineWidth(2); // define the width of the line
-        gl.glTranslated(tX, tY, tZ);  // translate the shape
-        gl.glScalef(randomScale, randomScale, randomScale); // scale it
+        //gl.glTranslated(tX, tY, tZ);  // translate the shape
+        //gl.glScalef(randomScale, randomScale, randomScale); // scale it
         // draw a random shape at the top of the blueprint
         pickShape(drawable, randomShape);
-        gl.glPopMatrix();
+        //gl.glPopMatrix();
     }
 
     // set the position of the camera
-    private void setObserver() {
-        glu.gluLookAt(-1, 2, 10.0, // look from camera XYZ
-                0.0, 0.0, 0.0, // look at the origin
-                0.0, 1.0, 0.0); // positive Y up vector
-    }
+    //private void setObserver() {
+    //    glu.gluLookAt(-1, 2, 10.0, // look from camera XYZ
+    //            0.0, 0.0, 0.0, // look at the origin
+    //            0.0, 1.0, 0.0); // positive Y up vector
+    //}
 
     // the palette drawn on the left side of the screen
     private void palette(GLAutoDrawable glAutoDrawable) {
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
 
         // apply the subsequent matrix operation to the modelview matrix stack
-        gl.glMatrixMode(GL2.GL_MODELVIEW); // convert local coordinates to world space
-        gl.glLoadIdentity(); // reset the value
+        //gl.glMatrixMode(GL4.GL_MODELVIEW); // convert local coordinates to world space
+        //gl.glLoadIdentity(); // reset the value
 
         // apply the subsequent matrix operation to the projection matrix stack
-        gl.glMatrixMode(GL2.GL_PROJECTION); // add perspective to the current operation
-        gl.glLoadIdentity();
+        //gl.glMatrixMode(GL4.GL_PROJECTION); // add perspective to the current operation
+        //gl.glLoadIdentity();
 
         // specify the lower left of the viewport rectangle in pixel (0,0), width and height
         gl.glViewport(0, 0, WINDOW_WIDTH/3, WINDOW_HEIGHT);
@@ -1185,26 +1185,26 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         aspectP = (float) WINDOW_HEIGHT / ((float) WINDOW_WIDTH /3);
 
         // multiply the current matrix with an orthographic matrix
-        gl.glOrtho(
-                (float) -10/2, // left vertical clipping plane
-                (float) 10 / 2, // right vertical clipping plane
-                (-10 * aspectP) / 2, // bottom horizontal clipping plane
-                (10 * aspectP) / 2, // top horizontal clipping plane
-                1, // near depth clipping plane
-                11 // near farther clipping plane
-        );
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
+        //gl.glOrtho(
+        //        (float) -10/2, // left vertical clipping plane
+        //        (float) 10 / 2, // right vertical clipping plane
+        //        (-10 * aspectP) / 2, // bottom horizontal clipping plane
+        //        (10 * aspectP) / 2, // top horizontal clipping plane
+        //        1, // near depth clipping plane
+        //        11 // near farther clipping plane
+        //);
+        //gl.glMatrixMode(GL4.GL_MODELVIEW);
 
         // draw the background of the palette
         paletteBackground(glAutoDrawable);
-        gl.glLoadIdentity();
+        //gl.glLoadIdentity();
 
         // set the camera for the palette
         glu.gluLookAt(-1, 2, 10.0, // look from camera XYZ
                 0.0, 0.0, 0.0, // look at the origin
                 0.0, 1.0, 0.0); // positive Y up vector
 
-        gl.glPolygonMode(GL2.GL_FRONT_AND_BACK, GL2.GL_FILL);
+        gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_FILL);
 
         // draw the shape on top of the background palette
         drawPaletteShape(glAutoDrawable, 1); // draws a cube
@@ -1215,29 +1215,29 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     }
     private void paletteBackground(GLAutoDrawable glAutoDrawable) {
         try {
-            GL2 gl = glAutoDrawable.getGL().getGL2(); // get the openGL graphics context
-            gl.glPushMatrix();
+            GL4 gl = glAutoDrawable.getGL().getGL4(); // get the openGL graphics context
+            //gl.glPushMatrix();
 
             // enable the server-side GL capabilities for texture
-            gl.glEnable(GL2.GL_TEXTURE_2D);
+            gl.glEnable(GL4.GL_TEXTURE_2D);
 
             // set different texture parameters
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MAG_FILTER, GL2.GL_NEAREST);
-            gl.glTexParameteri(GL2.GL_TEXTURE_2D, GL2.GL_TEXTURE_MIN_FILTER, GL2.GL_NEAREST);
-            gl.glGenerateMipmap(GL2.GL_TEXTURE_2D);
+            gl.glTexParameteri(GL4.GL_TEXTURE_2D, GL4.GL_TEXTURE_MAG_FILTER, GL4.GL_NEAREST);
+            gl.glTexParameteri(GL4.GL_TEXTURE_2D, GL4.GL_TEXTURE_MIN_FILTER, GL4.GL_NEAREST);
+            gl.glGenerateMipmap(GL4.GL_TEXTURE_2D);
 
             // set the texture to use
             textures[2].bind(gl);
 
-            gl.glTranslated(-1.35f, -2f, -10f);
-            gl.glScalef(3.5f, 5f, 0f);
-            gl.glColor3f(1f, 1f, 1f);
+            //gl.glTranslated(-1.35f, -2f, -10f);
+            //gl.glScalef(3.5f, 5f, 0f);
+            //gl.glColor3f(1f, 1f, 1f);
 
-            Shape.square(gl, 2, true);
+            //Shape.square(gl, 2, true);
 
-            gl.glDisable(GL2.GL_TEXTURE_2D);
+            gl.glDisable(GL4.GL_TEXTURE_2D);
 
-            gl.glPopMatrix();
+            //gl.glPopMatrix();
         }catch (Exception e){
             e.printStackTrace();
         }
@@ -1272,21 +1272,21 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                               float randomScale, // the size of the shape
                               int shapeId // the choice of shape
     ){
-        GL2 gl = drawable.getGL().getGL2();
-        gl.glColor3f(colorRed, colorGreen, colorBlue);
-        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
+        GL4 gl = drawable.getGL().getGL4();
+        //gl.glColor3f(colorRed, colorGreen, colorBlue);
+        gl.glPolygonMode(GL.GL_FRONT_AND_BACK, GL4.GL_FILL);
 
         // control the transformation applied to the object
-        gl.glPushMatrix();
-        gl.glTranslated(tX, tY, tZ); // add the translation matrix
-        gl.glScalef(randomScale, randomScale, randomScale);
+        //gl.glPushMatrix();
+        //gl.glTranslated(tX, tY, tZ); // add the translation matrix
+        //gl.glScalef(randomScale, randomScale, randomScale);
         pickShape(drawable, shapeId);
-        gl.glPopMatrix();
+        //gl.glPopMatrix();
     }
 
     /* Allows the user to picks object from the palette and draw it on the blueprint */
     private void pickModels(GLAutoDrawable glAutoDrawable) {
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
 
         // start picking objects from the screen
         startPicking(glAutoDrawable);
@@ -1296,59 +1296,59 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         palettePicking(glAutoDrawable);
 
         // TODO: For any new shape, you'll need to register them here
-        gl.glPushName(CUBE_ID);
+        //gl.glPushName(CUBE_ID);
         drawPaletteShape(glAutoDrawable, 1); // draws a cube
-        gl.glPopName();
+        //gl.glPopName();
 
-        gl.glPushName(CUBOID_ID);
+        //gl.glPushName(CUBOID_ID);
         drawPaletteShape(glAutoDrawable, 2); // draws a cuboid
-        gl.glPopName();
+        //gl.glPopName();
 
-        gl.glPushName(RECTANGULAR_PYRAMID_ID);
+        //gl.glPushName(RECTANGULAR_PYRAMID_ID);
         drawPaletteShape(glAutoDrawable, 3); // draws a rectangular pyramid
-        gl.glPopName();
+        //gl.glPopName();
 
-        gl.glPushName(CYLINDER_ID);
+        //gl.glPushName(CYLINDER_ID);
         drawPaletteShape(glAutoDrawable, 4); // draws a cylinder
-        gl.glPopName();
+        //gl.glPopName();
 
-        gl.glPushName(SPHERE_ID);
+        //gl.glPushName(SPHERE_ID);
         drawPaletteShape(glAutoDrawable, 5); // draws a sphere
-        gl.glPopName();
+        //gl.glPopName();
 
         // we are done picking
         endPicking(glAutoDrawable);
     }
     private void startPicking(GLAutoDrawable glAutoDrawable) {
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
         // Determine which shape are to be drawn on the blueprint
         ByteBuffer byteBuffer = ByteBuffer.allocateDirect(BUFSIZE * Integer.BYTES);
         byteBuffer.order(ByteOrder.nativeOrder());
         selectBuffer = byteBuffer.asIntBuffer();
 
-        gl.glSelectBuffer(BUFSIZE, selectBuffer);
-        gl.glRenderMode(GL2.GL_SELECT);
-        gl.glInitNames();
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
+        //gl.glSelectBuffer(BUFSIZE, selectBuffer);
+        //gl.glRenderMode(GL4.GL_SELECT);
+        //gl.glInitNames();
+        //gl.glMatrixMode(GL4.GL_MODELVIEW);
     }
 
     private void palettePicking(GLAutoDrawable glAutoDrawable){
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
 
-        gl.glMatrixMode(GL2.GL_PROJECTION);
-        gl.glPushMatrix();
+        //gl.glMatrixMode(GL4.GL_PROJECTION);
+        //gl.glPushMatrix();
 
-        gl.glLoadIdentity();
+        //gl.glLoadIdentity();
         int [] viewport = new int[4];
         float [] projectionMatrix = new float[16];
 
-        gl.glGetIntegerv(GL2.GL_VIEWPORT, viewport, 0);
+        gl.glGetIntegerv(GL4.GL_VIEWPORT, viewport, 0);
         viewport[0] = 0;
         viewport[1] = 0;
         viewport[2] = WINDOW_WIDTH / 3;
         viewport[3] = WINDOW_HEIGHT;
 
-        gl.glGetFloatv(GL2.GL_PROJECTION_MATRIX, projectionMatrix, 0);
+        //gl.glGetFloatv(GL4.GL_PROJECTION_MATRIX, projectionMatrix, 0);
 
         // define the picking region
         glu.gluPickMatrix((double) xCursor,
@@ -1357,34 +1357,34 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                 1.0,
                 viewport,
                 0);
-        gl.glMultMatrixf(projectionMatrix, 0);
-        gl.glOrtho((float) -10/2,
-                (float) 10/2,
-                (-10*aspectP) / 2,
-                (10*aspectP) / 2,
-                1,
-                11);
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
-        gl.glLoadIdentity();
-        glu.gluLookAt(-1, 2, 10.0,
-                0.0, 0.0, 0.0,
-                0.0, 1.0, 0.0);
-        gl.glPopMatrix();
+        //gl.glMultMatrixf(projectionMatrix, 0);
+        //gl.glOrtho((float) -10/2,
+        //        (float) 10/2,
+        //        (-10*aspectP) / 2,
+        //        (10*aspectP) / 2,
+        //        1,
+        //        11);
+        //gl.glMatrixMode(GL4.GL_MODELVIEW);
+        //gl.glLoadIdentity();
+        //glu.gluLookAt(-1, 2, 10.0,
+        //        0.0, 0.0, 0.0,
+        //        0.0, 1.0, 0.0);
+        //gl.glPopMatrix();
     }
     private void endPicking(GLAutoDrawable glAutoDrawable){
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
 
-        gl.glMatrixMode(GL2.GL_PROJECTION);
-        gl.glPopMatrix();
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
+        //gl.glMatrixMode(GL4.GL_PROJECTION);
+        //gl.glPopMatrix();
+        //gl.glMatrixMode(GL4.GL_MODELVIEW);
         gl.glFlush();
 
-        int numHits = gl.glRenderMode(GL2.GL_RENDER);
-        processHits(glAutoDrawable, numHits);
+        //int numHits = gl.glRenderMode(GL4.GL_RENDER);
+        //processHits(glAutoDrawable, numHits);
         inSelectionMode = false;
     }
     private void processHits(GLAutoDrawable glAutoDrawable, int numHits) {
-        GL2 gl = glAutoDrawable.getGL().getGL2();
+        GL4 gl = glAutoDrawable.getGL().getGL4();
         if(numHits == 0)  return;
 
         // store the Id's for what was selected
@@ -1671,8 +1671,8 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     public void keyTyped(KeyEvent e) { }
     @Override
     public void keyPressed(KeyEvent e) {
-        int key = e.getKeyCode(); // keyboard code for the pressed key
-
+        int key = e.getKeyCode();
+        camera.handleKeyInput(e);
         // traverse through the blueprint
         if(key == KeyEvent.VK_W){
             traverse = traverse + 1;
@@ -1937,6 +1937,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     public void mouseClicked(MouseEvent mouseEvent) { }
     @Override
     public void mousePressed(MouseEvent mouseEvent) {
+        /*
         switch (mouseEvent.getButton()){
             case MouseEvent.BUTTON1: { // left click
                 xCursor = mouseEvent.getX();
@@ -1945,10 +1946,25 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                 break;
             }
         }
+         */
+        camera.MousePressed(mouseEvent);
     }
     @Override
     public void mouseReleased(MouseEvent mouseEvent) {
+        camera.MouseReleased(mouseEvent);
     }
+
+    @Override
+    public void mouseDragged(MouseEvent mouseEvent)
+    {
+        camera.MouseDragged(mouseEvent);
+    }
+
+    @Override
+    public void mouseMoved(MouseEvent e) {
+
+    }
+
     @Override
     public void mouseEntered(MouseEvent mouseEvent) { }
     @Override

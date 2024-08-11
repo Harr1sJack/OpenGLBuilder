@@ -1,175 +1,167 @@
 package ogl2.exam;
 
-import com.jogamp.opengl.GL2;
-import com.jogamp.opengl.glu.GLU;
+import com.jogamp.opengl.GL4;
+import com.jogamp.opengl.math.Matrix4f;
+import com.jogamp.opengl.math.Vec3f;
+
+import java.awt.event.*;
 
 public class Camera {
 
-    // look from camera (X,Y,Z) - Position
-    private double eyeX = 0;
-    private double eyeY = 0;
-    private double eyeZ = 0;
+    private int width;
+    private int height;
+    public Vec3f position;
+    private Vec3f orientation;
+    private Vec3f up;
+    private float moveSpeed = 0.7f;
+    private float rotationSpeed = 0.01f;
+    public Matrix4f viewMatrix;
+    public Matrix4f projMatrix;
 
-    // look at the origin - Direction
-    private double refX = 0;
-    private double refY = 0;
-    private double refZ = 0;
+    private boolean isDragging = false;
+    private int lastMouseX = 0;
+    private int lastMouseY = 0;
+    private float sensitivity = 0.4f;
 
-    // position Y up vector (roll of the camera)
-    private double upX = 0;
-    private double upY = 0;
-    private double upZ = 0;
-
-    private double xMinRequested = -5;
-    private double xMaxRequested = 5;
-    private double yMinRequested = -5;
-    private double yMaxRequested = 5;
-    private double zMinRequested = -5;
-    private double zMaxRequested = 5;
-
-    private double xMinActual = 0;
-    private double xMaxActual = 0;
-    private double yMinActual = 0;
-    private double yMaxActual = 0;
-
-    // views
-    private boolean orthographic = false;
-    private boolean preserveAspect = true;
-
-    // access openGL utilities libraries like volume,...
-    private GLU glu;
-
-    // sets the limit of the view scene
-    private void setLimit(double xMin, double xMax,
-                          double yMin, double yMax,
-                          double zMin, double zMax){
-        // set the limit of our viewport
-        xMinRequested = xMin;
-        xMaxRequested = xMax;
-        yMinRequested = yMin;
-        yMaxRequested = yMax;
-        zMinRequested = zMin;
-        zMaxRequested = zMax;
-        glu = new GLU();
+    public Camera(int width, int height, Vec3f position) {
+        this.width = width;
+        this.height = height;
+        this.position = position;
+        this.orientation = new Vec3f(0, 0, -1);
+        this.up = new Vec3f(0, 1, 0);
+        this.viewMatrix = new Matrix4f();
+        this.projMatrix = new Matrix4f();
     }
 
-    // a convenient method for calling setLimit()
-    public void setScale(double limit){
-        setLimit(limit, limit, limit, limit, limit, limit);
+    public void updateMatrix(float FOVdeg, float nearPlane, float farPlane) {
+        // Set view matrix
+        viewMatrix.loadIdentity();
+        Vec3f target = new Vec3f(position).add(orientation);
+        viewMatrix.setToLookAt(position, target, up, new Matrix4f());
+
+        // Set projection matrix
+        projMatrix.loadIdentity();
+        projMatrix.setToPerspective(FOVdeg, (float) width / height, nearPlane, farPlane);
     }
 
-    // return the view limit
-    public double [] getLimit(){
-        return new double [] {
-          xMinRequested,
-          xMaxRequested,
-          yMinRequested,
-          yMaxRequested,
-          zMinRequested,
-          zMaxRequested
-        };
+
+    public void moveForward() {
+        Vec3f forward = new Vec3f(orientation).scale(moveSpeed);
+        position.add(forward);
     }
 
-    //
-    public void lookAt(double eyeX, double eyeY, double eyeZ,
-                       double viewCenterX, double viewCenterY, double viewCenterZ,
-                       double viewUpX, double viewUpY, double viewUpZ){
-        // look from camera XYZ
-        this.eyeX = eyeX;
-        this.eyeY = eyeY;
-        this.eyeZ = eyeZ;
-
-        // look at the origin
-        this.refX = viewCenterX;
-        this.refY = viewCenterY;
-        this.refZ = viewCenterZ;
-
-        // Roll of the camera
-        this.upX = viewUpX;
-        this.upY = viewUpY;
-        this.upZ = viewUpZ;
+    public void moveBackward() {
+        Vec3f backward = new Vec3f(orientation).scale(-moveSpeed);
+        position.add(backward);
     }
 
-    /*
-        Apply the camera to an OpenGL Context to set the view once we start the game.
-    */
-    public void apply(GL2 gl){
-        int [] viewport = new int[4];
-        gl.glGetIntegerv(GL2.GL_VIEWPORT, viewport, 0);
+    public void moveLeft() {
+        Vec3f left = new Vec3f();
+        left.cross(up,orientation);
+        left.normalize();
+        left.scale(moveSpeed);
+        position.add(left);
+    }
 
-        xMinActual = xMinRequested;
-        xMaxActual = xMinRequested;
-        yMinActual = yMinRequested;
-        yMaxActual = yMinRequested;
+    public void moveRight() {
+        Vec3f right = new Vec3f();
+        right.cross(orientation,up);
+        right.normalize();
+        right.scale(moveSpeed);
+        position.add(right);
+    }
 
-        if(preserveAspect){
 
-            double viewWidth = viewport[2]; // grab the width
-            double viewHeight = viewport[3]; // grab the height
+    public void rotateYaw(float angle) {
+        Matrix4f rotationMatrix = new Matrix4f().setToRotationEuler(new Vec3f(0,-angle * rotationSpeed,0));
+        rotationMatrix.mulVec3f(orientation, orientation);
+    }
 
-            // compute the window width and height
-            double windowWidth = xMaxActual - xMinActual;
-            double windowHeight = yMaxActual - yMinActual;
+    public void rotatePitch(float angle) {
+        Vec3f right = new Vec3f();
+        right.cross(orientation,up);
+        right.normalize();
+        Matrix4f rotationMatrix = new Matrix4f().setToRotationEuler(new Vec3f(-angle * rotationSpeed,0,0));
+        rotationMatrix.mulVec3f(orientation, orientation);
+    }
 
-            // compute the aspect ratio of the view and desired view
-            double aspect = viewHeight / viewWidth;
-            double desired = windowHeight / windowWidth;
+    public void uploadToShader(GL4 gl, Shader shader, String projectionUniform, String viewUniform) {
+        // Use the shader
+        shader.use();
 
-            if(desired > aspect){ // expand the width
-                double extra = (desired / aspect - 1.0) *
-                               (xMaxActual - xMinActual) / 2.0;
-                xMinActual = xMinActual - extra;
-                xMaxActual = xMaxActual + extra;
-            }else{ // expand the height
-                double extra = (desired / aspect - 1.0) *
-                        (yMaxActual - yMinActual) / 2.0;
-                yMinActual = yMinActual - extra;
-                yMaxActual = yMaxActual + extra;
-            }
+        // Send matrices to shaders
+        int projectionMatrixLocation = gl.glGetUniformLocation(shader.programId, projectionUniform);
+        int viewMatrixLocation = gl.glGetUniformLocation(shader.programId, viewUniform);
+
+        float[] projectionMatrixArray = new float[16];
+        float[] viewMatrixArray = new float[16];
+
+        projMatrix.get(projectionMatrixArray);
+        viewMatrix.get(viewMatrixArray);
+
+        gl.glUniformMatrix4fv(projectionMatrixLocation, 1, false, projectionMatrixArray, 0);
+        gl.glUniformMatrix4fv(viewMatrixLocation, 1, false, viewMatrixArray, 0);
+    }
+
+
+    public void handleKeyInput(KeyEvent keyEvent) {
+        switch (keyEvent.getKeyCode()) {
+            case KeyEvent.VK_W:
+                moveForward();
+                break;
+            case KeyEvent.VK_S:
+                moveBackward();
+                break;
+            case KeyEvent.VK_A:
+                moveLeft();
+                break;
+            case KeyEvent.VK_D:
+                moveRight();
+                break;
+            case KeyEvent.VK_LEFT:
+                rotateYaw(-1);
+                break;
+            case KeyEvent.VK_RIGHT:
+                rotateYaw(1);
+                break;
+            case KeyEvent.VK_UP:
+                rotatePitch(-1);
+                break;
+            case KeyEvent.VK_DOWN:
+                rotatePitch(1);
+                break;
         }
-
-        // projection from camera space to screen space
-        gl.glMatrixMode(GL2.GL_PROJECTION);
-        gl.glLoadIdentity();
-        double viewDistance = norm(new double[] {refX - eyeX, refY - eyeY, refZ - eyeZ});
-
-        if(orthographic){ // is orthographic view
-            gl.glOrtho(xMinActual, xMaxActual,
-                       yMinActual, yMaxActual,
-                       viewDistance-zMaxRequested,
-                         viewDistance-zMinRequested);
-        }else { // is perspective view
-            double near = viewDistance - zMaxRequested;
-            if(near < 0.1){
-                near = 0.1;
-            }
-
-            double centerX = (xMinActual + xMaxActual) / 2;
-            double centerY = (yMinActual + yMaxActual) / 2;
-            double newWidth = (near / viewDistance) * (xMaxActual - xMinActual);
-            double newHeight = (near / viewDistance) * (yMaxActual - yMinActual);
-
-            double x1 = centerX - newWidth / 2;
-            double x2 = centerX + newWidth / 2;
-            double y1 = centerY - newHeight / 2;
-            double y2 = centerY + newHeight / 2;
-
-            gl.glFrustum(x1, x2, y1, y2, near, viewDistance-zMinRequested);
-        }
-
-        // define the position orientation of the camera
-        gl.glMatrixMode(GL2.GL_MODELVIEW);
-        gl.glLoadIdentity();
-        glu.gluLookAt(eyeX, eyeY, eyeZ, // look from the camera xyz
-                      refX, refY, refZ, // look at the origin
-                      upX, upY, upZ); // positive Y up vector
     }
 
-    private double norm(double [] v){
-        double norm2 = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
-        if(Double.isNaN(norm2) || Double.isInfinite(norm2) || norm2 == 0){
-            throw new NumberFormatException("Vector length zero, undefined or infinite");
+    public void MousePressed(MouseEvent mouseEvent) {
+        System.out.println("mouse pressed");
+        if (mouseEvent.getButton() == MouseEvent.BUTTON1) {
+            isDragging = true;
+            lastMouseX = mouseEvent.getX();
+            lastMouseY = mouseEvent.getY();
         }
-        return norm2;
+    }
+
+    public void MouseReleased(MouseEvent mouseEvent) {
+        System.out.println("mouse released");
+        if (mouseEvent.getButton() == MouseEvent.BUTTON1) {
+            isDragging = false;
+        }
+    }
+
+    public void MouseDragged(MouseEvent mouseEvent) {
+        System.out.println("mouse dragged");
+        if (isDragging) {
+            int deltaX = mouseEvent.getX() - lastMouseX;
+            int deltaY = mouseEvent.getY() - lastMouseY;
+
+            // Apply sensitivity to the delta values
+            rotateYaw(deltaX * sensitivity);
+            rotatePitch(deltaY * sensitivity);
+
+            // Update last mouse positions
+            lastMouseX = mouseEvent.getX();
+            lastMouseY = mouseEvent.getY();
+        }
     }
 }
