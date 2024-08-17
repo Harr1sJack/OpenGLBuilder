@@ -15,7 +15,7 @@ uniform mat4 projection;
 void main() {
 
     crntPos = vec3(model * vec4(aPos, 1.0));
-    TexCoord = aTexCoord;//vec2(aTexCoord.x, 1.0 - aTexCoord.y);
+    TexCoord = vec2(aTexCoord.x, 1.0 - aTexCoord.y);
     //reconfiguring the normals,if the model is being scaled or rotated
     Normal = mat3(transpose(inverse(model))) * aNormal;
     gl_Position = projection * view * model * vec4(aPos, 1.0);

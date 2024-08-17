@@ -12,9 +12,10 @@ public class OBJLoader {
         List<Float> vertices = new ArrayList<>();
         List<Float> textures = new ArrayList<>();
         List<Float> normals = new ArrayList<>();
-        List<Integer> vertexIndices = new ArrayList<>();
-        List<Integer> textureIndices = new ArrayList<>();
-        List<Integer> normalIndices = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
+        List<Float> finalVertices = new ArrayList<>();
+        List<Float> finalTextures = new ArrayList<>();
+        List<Float> finalNormals = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line;
@@ -38,9 +39,36 @@ public class OBJLoader {
                     case "f":
                         for (int i = 1; i <= 3; i++) {
                             String[] vertexData = tokens[i].split("/");
-                            vertexIndices.add(Integer.parseInt(vertexData[0]) - 1); // Vertex index
-                            textureIndices.add(vertexData.length > 1 && !vertexData[1].isEmpty() ? Integer.parseInt(vertexData[1]) - 1 : -1); // Texture index
-                            normalIndices.add(vertexData.length > 2 && !vertexData[2].isEmpty() ? Integer.parseInt(vertexData[2]) - 1 : -1); // Normal index
+                            int vertexIndex = Integer.parseInt(vertexData[0]) - 1;
+                            int textureIndex = vertexData.length > 1 && !vertexData[1].isEmpty() ? Integer.parseInt(vertexData[1]) - 1 : -1;
+                            int normalIndex = vertexData.length > 2 && !vertexData[2].isEmpty() ? Integer.parseInt(vertexData[2]) - 1 : -1;
+
+                            indices.add(finalVertices.size() / 3);
+
+                            // Add vertex data
+                            finalVertices.add(vertices.get(vertexIndex * 3));
+                            finalVertices.add(vertices.get(vertexIndex * 3 + 1));
+                            finalVertices.add(vertices.get(vertexIndex * 3 + 2));
+
+                            // Add texture data
+                            if (textureIndex != -1) {
+                                finalTextures.add(textures.get(textureIndex * 2));
+                                finalTextures.add(textures.get(textureIndex * 2 + 1));
+                            } else {
+                                finalTextures.add(0.0f);
+                                finalTextures.add(0.0f);
+                            }
+
+                            // Add normal data
+                            if (normalIndex != -1) {
+                                finalNormals.add(normals.get(normalIndex * 3));
+                                finalNormals.add(normals.get(normalIndex * 3 + 1));
+                                finalNormals.add(normals.get(normalIndex * 3 + 2));
+                            } else {
+                                finalNormals.add(0.0f);
+                                finalNormals.add(0.0f);
+                                finalNormals.add(0.0f);
+                            }
                         }
                         break;
                     default:
@@ -49,43 +77,23 @@ public class OBJLoader {
             }
         }
 
-        float[] verticesArray = new float[vertices.size()];
-        for (int i = 0; i < vertices.size(); i++) {
-            verticesArray[i] = vertices.get(i);
+        float[] verticesArray = new float[finalVertices.size()];
+        for (int i = 0; i < finalVertices.size(); i++) {
+            verticesArray[i] = finalVertices.get(i);
         }
 
-        float[] texturesArray = new float[textures.size()];
-        for (int i = 0; i < textures.size(); i++) {
-            texturesArray[i] = textures.get(i);
+        float[] texturesArray = new float[finalTextures.size()];
+        for (int i = 0; i < finalTextures.size(); i++) {
+            texturesArray[i] = finalTextures.get(i);
         }
 
-        float[] normalsArray = new float[normals.size()];
-        for (int i = 0; i < normals.size(); i++) {
-            normalsArray[i] = normals.get(i);
+        float[] normalsArray = new float[finalNormals.size()];
+        for (int i = 0; i < finalNormals.size(); i++) {
+            normalsArray[i] = finalNormals.get(i);
         }
 
-        // Create the index arrays for the mesh
-        List<Integer> finalIndices = new ArrayList<>();
-        for (int i = 0; i < vertexIndices.size(); i += 3) {
-            int v0 = vertexIndices.get(i);
-            int v1 = vertexIndices.get(i + 1);
-            int v2 = vertexIndices.get(i + 2);
+        int[] indicesArray = indices.stream().mapToInt(i -> i).toArray();
 
-            // Check if indices are within bounds
-            if (v0 >= 0 && v0 < verticesArray.length / 3 &&
-                    v1 >= 0 && v1 < verticesArray.length / 3 &&
-                    v2 >= 0 && v2 < verticesArray.length / 3) {
-                finalIndices.add(v0);
-                finalIndices.add(v1);
-                finalIndices.add(v2);
-            } else {
-                System.out.println("Vertex index out of bounds: " + v0 + ", " + v1 + ", " + v2);
-            }
-        }
-
-        int[] indicesArray = finalIndices.stream().mapToInt(i -> i).toArray();
-
-        // Debug prints
         System.out.println("Vertices array size: " + verticesArray.length);
         System.out.println("Normals array size: " + normalsArray.length);
         System.out.println("Textures array size: " + texturesArray.length);

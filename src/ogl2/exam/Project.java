@@ -54,8 +54,8 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     // initialize the canvas for the window
     private GLCanvas canvas;
     private FPSAnimator animator;
-    private int WINDOW_WIDTH = 640;
-    private int WINDOW_HEIGHT = 480;
+    private int WINDOW_WIDTH = 700;
+    private int WINDOW_HEIGHT = 700;
     private static final String TITLE = "The Shapes";
     private static final int FPS = 144;
 
@@ -249,6 +249,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     //Mesh Data
     Mesh tower;
     Mesh cube;
+    Mesh cube1;
     Shader defaultShader;
     TextureLoader textureLoader;
 
@@ -567,14 +568,42 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         defaultShader.setUniformMat4f("projection", projectionMatrix.get(new float[16])); // Convert to float array
         defaultShader.stop();
         try {
-            tower = OBJLoader.loadMesh("C:/Users/Jack/Downloads/bottom.obj", defaultShader);
-            cube = OBJLoader.loadMesh("C:/Users/Jack/Downloads/cube.obj", defaultShader);
+            tower = OBJLoader.loadMesh("C:/Users/Jack/Downloads/tower.obj", defaultShader);
+            cube = OBJLoader.loadMesh("C:/Users/Jack/Downloads/plane.obj", defaultShader);
             textureLoader = new TextureLoader("C:/Users/Jack/Downloads/tower.jpg");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         camera = new Camera(WINDOW_WIDTH, WINDOW_HEIGHT, new Vec3f(0, 0, 10));
         camera.updateMatrix(60.0f, 0.1f, 1000.0f);
+        float[] vertices = {
+                -0.5f, 0.0f, -0.5f,  // Bottom-left
+                0.5f, 0.0f, -0.5f,  // Bottom-right
+                0.5f, 0.0f,  0.5f,  // Top-right
+                -0.5f, 0.0f,  0.5f   // Top-left
+        };
+
+
+        float[] textureCoords = {
+                0.0f, 0.0f,  // Bottom-left
+                1.0f, 0.0f,  // Bottom-right
+                1.0f, 1.0f,  // Top-right
+                0.0f, 1.0f   // Top-left
+        };
+
+        float[] normals = {
+                0.0f, 1.0f, 0.0f,  // Bottom-left
+                0.0f, 1.0f, 0.0f,  // Bottom-right
+                0.0f, 1.0f, 0.0f,  // Top-right
+                0.0f, 1.0f, 0.0f   // Top-left
+        };
+
+        int[] indices = {
+                0, 1, 2,  // First triangle (Bottom-left, Bottom-right, Top-right)
+                2, 3, 0   // Second triangle (Top-right, Top-left, Bottom-left)
+        };
+        // Draw any additional objects
+        //cube1 = new Mesh(vertices, textureCoords, normals, indices, defaultShader);
     }
     @Override
     public void dispose(GLAutoDrawable glAutoDrawable) { }
@@ -594,68 +623,14 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             //drawBackground(glAutoDrawable); // draws the background (rainbow)
         //}
 
-        float[] vertices = {
-                1.000000f, 1.000000f, -1.000000f,   // Vertex 1
-                1.000000f, -1.000000f, -1.000000f,  // Vertex 2
-                1.000000f, 1.000000f, 1.000000f,    // Vertex 3
-                1.000000f, -1.000000f, 1.000000f,   // Vertex 4
-                -1.000000f, 1.000000f, -1.000000f,  // Vertex 5
-                -1.000000f, -1.000000f, -1.000000f, // Vertex 6
-                -1.000000f, 1.000000f, 1.000000f,   // Vertex 7
-                -1.000000f, -1.000000f, 1.000000f   // Vertex 8
-        };
-
-        float[] textureCoords = {
-                0.875000f, 0.500000f,  // TexCoord 1
-                0.625000f, 0.750000f,  // TexCoord 2
-                0.625000f, 0.500000f,  // TexCoord 3
-                0.375000f, 1.000000f,  // TexCoord 4
-                0.375000f, 0.750000f,  // TexCoord 5
-                0.625000f, 0.000000f,  // TexCoord 6
-                0.375000f, 0.250000f,  // TexCoord 7
-                0.375000f, 0.000000f,  // TexCoord 8
-                0.375000f, 0.500000f,  // TexCoord 9
-                0.125000f, 0.750000f,  // TexCoord 10
-                0.125000f, 0.500000f,  // TexCoord 11
-                0.625000f, 0.250000f,  // TexCoord 12
-                0.875000f, 0.750000f,  // TexCoord 13
-                0.625000f, 1.000000f   // TexCoord 14
-        };
-
-        float[] normals = {
-                // Normals for each face, so each vertex has its normal
-                0.0f,  0.0f,  1.0f,  // Front face
-                0.0f,  0.0f, -1.0f,  // Back face
-                1.0f,  0.0f,  0.0f,  // Right face
-                -1.0f,  0.0f,  0.0f, // Left face
-                0.0f,  1.0f,  0.0f,  // Top face
-                0.0f, -1.0f,  0.0f   // Bottom face
-        };
-
-
-        int[] indices = {
-                4, 2, 0,  // Face 1
-                2, 7, 3,  // Face 2
-                6, 5, 7,  // Face 3
-                1, 7, 5,  // Face 4
-                0, 3, 1,  // Face 5
-                4, 1, 5,  // Face 6
-                4, 6, 2,  // Face 7
-                2, 6, 7,  // Face 8
-                6, 4, 5,  // Face 9
-                1, 3, 7,  // Face 10
-                0, 2, 3,  // Face 11
-                4, 0, 1   // Face 12
-        };
-
+        if (camera == null) {
+            throw new IllegalStateException("Camera has not been initialized.");
+        }
         // Update and upload the camera matrices to the shader
         camera.updateMatrix(45.0f, 0.1f, 1000.0f);
         camera.uploadToShader(gl, defaultShader, "projection", "view");
-        // Draw your mesh
-        //tower.draw();
 
-        // Draw any additional objects
-        //Mesh cube = new Mesh(vertices, textureCoords, normals, indices, defaultShader);
+
 
         defaultShader.use();
         textureLoader.bind(gl);
@@ -672,8 +647,9 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         float[] viewPos = {camera.position.x(),camera.position.y(),camera.position.z()};
         gl.glUniform3fv(viewPosLoc, 1, viewPos, 0);
 
-        cube.draw();
-        //tower.draw();
+        tower.draw();
+        //cube.draw();
+        //cube1.draw();
 
         textureLoader.unbind(gl);
         defaultShader.stop();

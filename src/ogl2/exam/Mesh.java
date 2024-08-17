@@ -27,7 +27,27 @@ public class Mesh {
         this.indices = indices;
         this.shader = shader;
         this.vertexCount = indices.length;
-        initMesh();  // Initialize the mesh data when the object is created
+        initMesh();
+        System.out.println("Verts");
+        for(var i:vertices)
+        {
+            System.out.println(i);
+        }
+        System.out.println("Texture");
+        for(var i:textures)
+        {
+            System.out.println(i);
+        }
+        System.out.println("Normals");
+        for(var i:normals)
+        {
+            System.out.println(i);
+        }
+        System.out.println("Indicies");
+        for(var i:indices)
+        {
+            System.out.println(i);
+        }
     }
 
     private void initMesh() {
@@ -44,22 +64,19 @@ public class Mesh {
 
         // VBO for vertices
         gl.glBindBuffer(GL4.GL_ARRAY_BUFFER, vboIds[0]);
-        gl.glBufferData(GL4.GL_ARRAY_BUFFER, vertices.length * Float.BYTES,
-                FloatBuffer.wrap(vertices), GL4.GL_STATIC_DRAW);
+        gl.glBufferData(GL4.GL_ARRAY_BUFFER, (long) vertices.length * Float.BYTES, FloatBuffer.wrap(vertices), GL4.GL_STATIC_DRAW);
         gl.glVertexAttribPointer(0, 3, GL4.GL_FLOAT, false, 3 * Float.BYTES, 0);
         gl.glEnableVertexAttribArray(0);
 
         // VBO for textures
         gl.glBindBuffer(GL4.GL_ARRAY_BUFFER, vboIds[1]);
-        gl.glBufferData(GL4.GL_ARRAY_BUFFER, textures.length * Float.BYTES,
-                FloatBuffer.wrap(textures), GL4.GL_STATIC_DRAW);
+        gl.glBufferData(GL4.GL_ARRAY_BUFFER, (long) textures.length * Float.BYTES, FloatBuffer.wrap(textures), GL4.GL_STATIC_DRAW);
         gl.glVertexAttribPointer(1, 2, GL4.GL_FLOAT, false, 2 * Float.BYTES, 0);
         gl.glEnableVertexAttribArray(1);
 
         // VBO for normals
         gl.glBindBuffer(GL4.GL_ARRAY_BUFFER, vboIds[2]);
-        gl.glBufferData(GL4.GL_ARRAY_BUFFER, normals.length * Float.BYTES,
-                FloatBuffer.wrap(normals), GL4.GL_STATIC_DRAW);
+        gl.glBufferData(GL4.GL_ARRAY_BUFFER, (long) normals.length * Float.BYTES, FloatBuffer.wrap(normals), GL4.GL_STATIC_DRAW);
         gl.glVertexAttribPointer(2, 3, GL4.GL_FLOAT, false, 3 * Float.BYTES, 0);
         gl.glEnableVertexAttribArray(2);
 
@@ -68,7 +85,7 @@ public class Mesh {
         gl.glGenBuffers(1, ebo, 0);
         eboId = ebo[0];
         gl.glBindBuffer(GL4.GL_ELEMENT_ARRAY_BUFFER, eboId);
-        gl.glBufferData(GL4.GL_ELEMENT_ARRAY_BUFFER, indices.length * Integer.BYTES,
+        gl.glBufferData(GL4.GL_ELEMENT_ARRAY_BUFFER, (long) indices.length * Integer.BYTES,
                 IntBuffer.wrap(indices), GL4.GL_STATIC_DRAW);
 
         // Unbind VAO
