@@ -28,26 +28,6 @@ public class Mesh {
         this.shader = shader;
         this.vertexCount = indices.length;
         initMesh();
-        System.out.println("Verts");
-        for(var i:vertices)
-        {
-            System.out.println(i);
-        }
-        System.out.println("Texture");
-        for(var i:textures)
-        {
-            System.out.println(i);
-        }
-        System.out.println("Normals");
-        for(var i:normals)
-        {
-            System.out.println(i);
-        }
-        System.out.println("Indicies");
-        for(var i:indices)
-        {
-            System.out.println(i);
-        }
     }
 
     private void initMesh() {

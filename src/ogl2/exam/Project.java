@@ -13,6 +13,7 @@ import com.jogamp.opengl.util.texture.awt.AWTTextureIO;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.border.Border;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -47,6 +48,11 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     // placeholder to display text
     private JLabel label;
 
+    //palette UI's
+    private JLabel imageLabel1;
+    private JLabel imageLabel2;
+    private JLabel imageLabel3;
+
     // the main gui where all the components like buttons,
     // checkboxes, etc.. are added
     private JFrame frame;
@@ -63,19 +69,8 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
     private GLU glu;
 
     // render bitmapped java 2d text unto our opengl window
-    private TextRenderer textRenderer;
-    private TextRenderer textMatch;
-
-    // initialize our textures files
-    private String [] textureFileNames = {
-            "disney4.jpg",
-            "wood3.png",
-            "mickeyframe.png",
-            "background.jpg"
-    };
-
-    // help in loading textures from disk using opengl
-    Texture [] textures = new Texture[textureFileNames.length];
+    //private TextRenderer textRenderer;
+    //private TextRenderer textMatch;
 
     // initialize some global variables to randomly position our
     // shapes on the blueprint
@@ -246,11 +241,22 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
     // initialize our camera class
     private Camera camera;
-    //Mesh Data
+
     Mesh tower;
-    Mesh cube;
-    Mesh cube1;
+    Mesh ground;
+    //Meshes
+    Mesh blue_bottom;
+    Mesh blue_mid1;
+    Mesh blue_mid2;
+    Mesh blue_mid3;
+    Mesh blue_mid4;
+    Mesh blue_mid5;
+    Mesh blue_mid6;
+    Mesh blue_top;
+
+    //Shaders
     Shader defaultShader;
+    //Textures
     TextureLoader textureLoader;
 
     public static void logGLCapabilities(GLCapabilities capabilities) {
@@ -272,7 +278,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
         // gathers information about the current hardware & software configuration
         // to allow us render graphics to our screen
-        GLProfile profile = GLProfile.get(GLProfile.GL4bc);
+        GLProfile profile = GLProfile.get(GLProfile.GL4);
         logGLProfile(profile);
         // specify a set of capabilities that our rendering should support
         GLCapabilities caps = new GLCapabilities(profile);
@@ -331,9 +337,30 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             specularLight = new JCheckBox("Specular Light", false);
             diffuseLight = new JCheckBox("Diffuse Light", false);
 
-            // create a layout for the buttons (2,2) grid
+
             JPanel windowPanel = new JPanel();
-            windowPanel.setLayout(new GridLayout(2, 2));
+            windowPanel.setLayout(new GridLayout(2, 1));
+
+            JPanel palettePanel = new JPanel();
+            palettePanel.setLayout(new BoxLayout(palettePanel, BoxLayout.Y_AXIS));
+
+            imageLabel1 = new JLabel(new ImageIcon("src/textures/bottom.png"));
+            imageLabel2 = new JLabel(new ImageIcon("src/textures/middle.png"));
+            imageLabel3 = new JLabel(new ImageIcon("src/textures/top.png"));
+
+            imageLabel1.setPreferredSize(new Dimension(100, 100));
+            imageLabel2.setPreferredSize(new Dimension(100, 100));
+            imageLabel3.setPreferredSize(new Dimension(100, 100));
+
+            imageLabel1.setAlignmentX(Component.CENTER_ALIGNMENT);
+            imageLabel2.setAlignmentX(Component.CENTER_ALIGNMENT);
+            imageLabel3.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+            palettePanel.add(imageLabel1);
+            palettePanel.add(imageLabel2);
+            palettePanel.add(imageLabel3);
+            palettePanel.setPreferredSize(new Dimension(110,300));
+            //frame.add(palettePanel, BorderLayout.WEST);
 
             // create the panel for the first row
             JPanel topPanel = new JPanel();
@@ -357,17 +384,46 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
             windowPanel.add(bottomPanel);
 
-            // add the windowPanel to the frame
             frame.add(windowPanel, BorderLayout.SOUTH);
 
-            // set the component to false so once it's clicked
-            // an action is the performed
             ambientLight.setFocusable(false);
             lightOnOff.setFocusable(false);
             globalAmbientLight.setFocusable(false);
             diffuseLight.setFocusable(false);
             specularLight.setFocusable(false);
 
+            imageLabel1.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                        imageLabel1.setBorder(BorderFactory.createLineBorder(Color.RED,5));
+                        imageLabel2.setBorder(null);
+                        imageLabel3.setBorder(null);
+                    }
+                }
+            });
+
+            imageLabel2.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                        imageLabel1.setBorder(null);
+                        imageLabel2.setBorder(BorderFactory.createLineBorder(Color.RED,5));
+                        imageLabel3.setBorder(null);
+                    }
+                }
+            });
+
+            imageLabel3.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                        imageLabel1.setBorder(null);
+                        imageLabel2.setBorder(null);
+                        imageLabel3.setBorder(BorderFactory.createLineBorder(Color.RED,5));
+                    }
+                }
+            });
             addButton.addActionListener( e -> {
                 // TODO: Implement to Pick Shapes from the Palette And Show Them on The Screen
                 if(e.getSource() == addButton){
@@ -486,24 +542,12 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
                 }
             });
 
-            // once the application starts, the window size will fit our
-            // preferred layout
             frame.pack();
             frame.setTitle(TITLE);
             frame.setVisible(true);
             animator.start();
         });
 
-    }
-
-    private static void checkCompileErrors(GL4 gl, int shader, String type) {
-        int[] success = new int[1];
-        gl.glGetShaderiv(shader, GL4.GL_COMPILE_STATUS, success, 0);
-        if (success[0] == GL4.GL_FALSE) {
-            byte[] log = new byte[512];
-            gl.glGetShaderInfoLog(shader, 512, null, 0, log, 0);
-            System.err.println("ERROR::SHADER_COMPILATION_ERROR of type: " + type + "\n" + new String(log));
-        }
     }
 
     @Override
@@ -522,41 +566,12 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         // initialize the textures to use
         glu = GLU.createGLU(gl); // get Gl utilities
 
-        for (int i = 0; i < textureFileNames.length; i++) {
-            try {
-                URL textureURL = getClass()
-                        .getClassLoader()
-                        .getResource("textures/" + textureFileNames[i]);
-
-                if (textureURL != null) {
-                    BufferedImage image = ImageIO.read(textureURL);
-                    ImageUtil.flipImageVertically(image);
-
-                    textures[i] = AWTTextureIO.newTexture(GLProfile.getDefault(),
-                            image,
-                            true);
-
-                    textures[i].setTexParameteri(gl,
-                            GL4.GL_TEXTURE_WRAP_S,
-                            GL4.GL_REPEAT);
-
-                    textures[i].setTexParameteri(gl,
-                            GL4.GL_TEXTURE_WRAP_T,
-                            GL4.GL_REPEAT);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-
-        // enables a texture by default
-        textures[0].enable(gl);
-
         // initialize the font to use when rendering our text
-        textRenderer = new TextRenderer(new Font("SansSerif", Font.PLAIN, 12));
-        textMatch = new TextRenderer(new Font("SansSerif", Font.BOLD, 20));
+        //textRenderer = new TextRenderer(new Font("SansSerif", Font.PLAIN, 12));
+        //textMatch = new TextRenderer(new Font("SansSerif", Font.BOLD, 20));
 
         defaultShader = new Shader("src/shaders/default.vert", "src/shaders/default.frag");
+
         // Create identity matrices
         Matrix4f modelMatrix = new Matrix4f().loadIdentity();
         Matrix4f viewMatrix = new Matrix4f().loadIdentity();
@@ -567,43 +582,25 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         defaultShader.setUniformMat4f("view", viewMatrix.get(new float[16]));         // Convert to float array
         defaultShader.setUniformMat4f("projection", projectionMatrix.get(new float[16])); // Convert to float array
         defaultShader.stop();
+
         try {
-            tower = OBJLoader.loadMesh("C:/Users/Jack/Downloads/tower.obj", defaultShader);
-            cube = OBJLoader.loadMesh("C:/Users/Jack/Downloads/plane.obj", defaultShader);
-            textureLoader = new TextureLoader("C:/Users/Jack/Downloads/tower.jpg");
+            blue_bottom = OBJLoader.loadMesh("src/models/blueprint_models/bottom.obj", defaultShader);
+            blue_mid1 = OBJLoader.loadMesh("src/models/blueprint_models/middle1.obj", defaultShader);
+            blue_mid2 = OBJLoader.loadMesh("src/models/blueprint_models/middle2.obj", defaultShader);
+            blue_mid3 = OBJLoader.loadMesh("src/models/blueprint_models/middle3.obj", defaultShader);
+            blue_mid4 = OBJLoader.loadMesh("src/models/blueprint_models/middle4.obj", defaultShader);
+            blue_mid5 = OBJLoader.loadMesh("src/models/blueprint_models/middle5.obj", defaultShader);
+            blue_mid6 = OBJLoader.loadMesh("src/models/blueprint_models/middle6.obj", defaultShader);
+            blue_top = OBJLoader.loadMesh("src/models/blueprint_models/top.obj", defaultShader);
+            tower = OBJLoader.loadMesh("src/models/tower.obj",defaultShader);
+            ground = OBJLoader.loadMesh("src/models/plane.obj",defaultShader);
+
+            textureLoader = new TextureLoader("C:/Users/Jack/Downloads/tower.jpg",glAutoDrawable.getGL().getGL4());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         camera = new Camera(WINDOW_WIDTH, WINDOW_HEIGHT, new Vec3f(0, 0, 10));
-        camera.updateMatrix(60.0f, 0.1f, 1000.0f);
-        float[] vertices = {
-                -0.5f, 0.0f, -0.5f,  // Bottom-left
-                0.5f, 0.0f, -0.5f,  // Bottom-right
-                0.5f, 0.0f,  0.5f,  // Top-right
-                -0.5f, 0.0f,  0.5f   // Top-left
-        };
-
-
-        float[] textureCoords = {
-                0.0f, 0.0f,  // Bottom-left
-                1.0f, 0.0f,  // Bottom-right
-                1.0f, 1.0f,  // Top-right
-                0.0f, 1.0f   // Top-left
-        };
-
-        float[] normals = {
-                0.0f, 1.0f, 0.0f,  // Bottom-left
-                0.0f, 1.0f, 0.0f,  // Bottom-right
-                0.0f, 1.0f, 0.0f,  // Top-right
-                0.0f, 1.0f, 0.0f   // Top-left
-        };
-
-        int[] indices = {
-                0, 1, 2,  // First triangle (Bottom-left, Bottom-right, Top-right)
-                2, 3, 0   // Second triangle (Top-right, Top-left, Bottom-left)
-        };
-        // Draw any additional objects
-        //cube1 = new Mesh(vertices, textureCoords, normals, indices, defaultShader);
+        camera.updateMatrix(45.0f, 0.1f, 1000.0f);
     }
     @Override
     public void dispose(GLAutoDrawable glAutoDrawable) { }
@@ -628,9 +625,10 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         }
         // Update and upload the camera matrices to the shader
         camera.updateMatrix(45.0f, 0.1f, 1000.0f);
+
+        defaultShader.use();
         camera.uploadToShader(gl, defaultShader, "projection", "view");
-
-
+        defaultShader.stop();
 
         defaultShader.use();
         textureLoader.bind(gl);
@@ -646,11 +644,21 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
 
         float[] viewPos = {camera.position.x(),camera.position.y(),camera.position.z()};
         gl.glUniform3fv(viewPosLoc, 1, viewPos, 0);
-
         tower.draw();
-        //cube.draw();
-        //cube1.draw();
-
+        //ground.draw();
+        /*
+        gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_LINE);
+        blue_bottom.draw();
+        blue_mid1.draw();
+        blue_mid2.draw();
+        blue_mid3.draw();
+        blue_mid4.draw();
+        blue_mid5.draw();
+        blue_mid6.draw();
+        blue_top.draw();
+        gl.glPolygonMode(GL4.GL_FRONT_AND_BACK, GL4.GL_FILL);
+         */
+        //draw
         textureLoader.unbind(gl);
         defaultShader.stop();
         // check if the game is finished, print the total matched shapes
@@ -1172,7 +1180,7 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         //gl.glMatrixMode(GL4.GL_MODELVIEW);
 
         // draw the background of the palette
-        paletteBackground(glAutoDrawable);
+        //paletteBackground(glAutoDrawable);
         //gl.glLoadIdentity();
 
         // set the camera for the palette
@@ -1201,9 +1209,6 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
             gl.glTexParameteri(GL4.GL_TEXTURE_2D, GL4.GL_TEXTURE_MAG_FILTER, GL4.GL_NEAREST);
             gl.glTexParameteri(GL4.GL_TEXTURE_2D, GL4.GL_TEXTURE_MIN_FILTER, GL4.GL_NEAREST);
             gl.glGenerateMipmap(GL4.GL_TEXTURE_2D);
-
-            // set the texture to use
-            textures[2].bind(gl);
 
             //gl.glTranslated(-1.35f, -2f, -10f);
             //gl.glScalef(3.5f, 5f, 0f);
@@ -1549,10 +1554,10 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         }
     }
     private void writeMatch(int x, int y){
-        textMatch.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
-        textMatch.setColor(0.3f, 0.3f, 0.3f, 1);
-        textMatch.draw("Well done! Correct Shape, Rotation & Scaling", x, y);
-        textMatch.endRendering();
+        //textMatch.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
+        //textMatch.setColor(0.3f, 0.3f, 0.3f, 1);
+        //textMatch.draw("Well done! Correct Shape, Rotation & Scaling", x, y);
+        //textMatch.endRendering();
     }
     private String scaleCheck(float value) {
         double scaling = Math.round(value * 100.0) / 100.0;
@@ -1621,10 +1626,10 @@ public class Project extends GLCanvas implements GLEventListener, KeyListener, M
         writeText(text, (int) (WINDOW_WIDTH/3.5f), WINDOW_HEIGHT-40);
     }
     private void writeText(String text, int x, int y){
-        textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
-        textRenderer.setColor(0.3f, 0.3f, 0.5f, 1);
-        textRenderer.draw(text, x, y);
-        textRenderer.endRendering();
+        //textRenderer.beginRendering(WINDOW_WIDTH, WINDOW_HEIGHT);
+        //textRenderer.setColor(0.3f, 0.3f, 0.5f, 1);
+        //textRenderer.draw(text, x, y);
+        //textRenderer.endRendering();
     }
     private int matchedShape(){
         // TODO: Add a check for a particular placeholder to see if the correct shape was matched or not
