@@ -1,0 +1,18 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="Shape:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/Shape_jar</output-path>
+    <root id="archive" name="Shape.jar">
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
+      </element>
+      <element id="module-output" name="Shape" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/jogl-all-natives-windows-amd64.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/gluegen-rt.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/gluegen-rt-natives-windows-amd64.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/jogl-all.jar" path-in-jar="/" />
+      <element id="dir-copy" path="$PROJECT_DIR$/src/models" />
+      <element id="dir-copy" path="$PROJECT_DIR$/src/shaders" />
+      <element id="dir-copy" path="$PROJECT_DIR$/src/textures" />
+    </root>
+  </artifact>
+</component>

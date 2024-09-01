@@ -1,7 +1,6 @@
 package ogl2.exam;
 
 import com.jogamp.opengl.GL4;
-import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.util.texture.Texture;
 import com.jogamp.opengl.util.texture.TextureIO;
 

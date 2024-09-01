@@ -4,12 +4,14 @@ import com.jogamp.opengl.GL4;
 import com.jogamp.opengl.math.Matrix4f;
 import com.jogamp.opengl.math.Vec3f;
 
+import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 
 public class Camera {
 
-    private int width;
-    private int height;
+    public int width;
+    public int height;
     public Vec3f position;
     private Vec3f orientation;
     private Vec3f up;
@@ -139,6 +141,9 @@ public class Camera {
             isDragging = true;
             lastMouseX = mouseEvent.getX();
             lastMouseY = mouseEvent.getY();
+            Cursor invisibleCursor = Toolkit.getDefaultToolkit().createCustomCursor(
+                    new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), new Point(0, 0), "invisible");
+            ((Component) mouseEvent.getSource()).setCursor(invisibleCursor);
         }
     }
 
@@ -146,6 +151,7 @@ public class Camera {
         System.out.println("mouse released");
         if (mouseEvent.getButton() == MouseEvent.BUTTON1) {
             isDragging = false;
+            ((Component) mouseEvent.getSource()).setCursor(Cursor.getDefaultCursor());
         }
     }
 

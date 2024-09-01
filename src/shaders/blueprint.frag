@@ -1,12 +1,18 @@
-#version 460 core
+#version 430 core
+
+in vec3 FragPos;
+in vec3 Normal;
 
 out vec4 FragColor;
 
-in vec2 TexCoord;
-in vec3 Normal;
-in vec3 crntPos;
+uniform bool isSelected;
 
+void main()
+{
+    vec3 color = vec3(1,1,1);
+    if (isSelected) {
+        color = vec3(1,0,0);
+    }
 
-void main() {
-    FragColor = vec4(1.0,1.0,1.0,1.0);
+    FragColor = vec4(color, 1);
 }

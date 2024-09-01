@@ -80,7 +80,6 @@ public class Shader {
         GL4 gl = GLContext.getCurrentGL().getGL4();
         gl.glUseProgram(programId);
     }
-
     public int getUniformLocation(String name) {
         GL4 gl = GLContext.getCurrentGL().getGL4();
         return gl.glGetUniformLocation(programId, name);

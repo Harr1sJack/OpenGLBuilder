@@ -1,4 +1,4 @@
-#version 460 core
+#version 430 core
 
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec2 aTexCoord;
@@ -15,8 +15,7 @@ uniform mat4 projection;
 void main() {
 
     crntPos = vec3(model * vec4(aPos, 1.0));
-    TexCoord = aTexCoord;//vec2(aTexCoord.x, 1.0 - aTexCoord.y);
-    //reconfiguring the normals,if the model is being scaled or rotated
+    TexCoord = aTexCoord;
     Normal = mat3(transpose(inverse(model))) * aNormal;
     gl_Position = projection * view * model * vec4(aPos, 1.0);
 }
